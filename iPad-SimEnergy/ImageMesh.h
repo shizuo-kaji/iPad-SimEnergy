@@ -54,12 +54,14 @@
 @property GLfloat *y;
 @property GLfloat *ix;
 @property GLfloat *iy;
-// flag for selected points
-@property bool *selected;
 // vertex index of triangles
 @property int *triangles;
 // number of triangles
 @property int numTriangles;
+
+// keep track of touches
+@property int *selected; // list of the indices of the selected vertices
+@property int numSelected;
 
 - (void)dealloc;
 

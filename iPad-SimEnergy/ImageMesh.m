@@ -46,6 +46,7 @@
 @synthesize ix;
 @synthesize iy;
 @synthesize selected;
+@synthesize numSelected;
 @synthesize triangles;
 @synthesize numTriangles;
 
@@ -68,6 +69,7 @@
     
     [clone setRadius:self.radius];
     [clone setSelected:self.selected];
+    [clone setNumSelected:self.numSelected];
     [clone setTriangles:self.triangles];
     [clone setNumVertices:self.numVertices];
     [clone setNumTriangles:self.numTriangles];
@@ -110,7 +112,8 @@
         y = malloc(numVertices * sizeof(*y));
         ix = malloc(numVertices * sizeof(*ix));
         iy = malloc(numVertices * sizeof(*iy));
-        selected = calloc(numVertices, sizeof(*selected));
+        selected = malloc(numVertices * sizeof(*selected));
+        numSelected = 0;
         triangles = malloc(3 * numTriangles * sizeof(*triangles));
         
         // prepare indice array:  each point is doubled to draw triangles correctly.
@@ -176,9 +179,7 @@
             count++;
         }
     }
-    for(int i=0;i<numVertices;i++){
-        selected[i] = false;
-    }
+    numSelected = 0;
     [self deform];
 }
 @end
