@@ -31,6 +31,7 @@
 <UINavigationControllerDelegate, UIImagePickerControllerDelegate, UIGestureRecognizerDelegate>{
     // mesh data
     ImageMesh *mainImage;
+    // hold touch information
     CFMutableDictionaryRef touchedPts;
     
     // screen size

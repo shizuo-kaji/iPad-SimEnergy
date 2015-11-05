@@ -22,25 +22,23 @@
 //  IN THE SOFTWARE.
 //
 
+
+// if you prefer LAPACK to Eigen, uncomment the next line; LAPACK is significantly slower
+//#define _LAPACK_
+
 #import "ViewController.h"
 #import <Accelerate/Accelerate.h>
-
 #include "Eigen/Sparse"
 #include "Eigen/Dense"
 #include <vector>
-
 using namespace Eigen;
-
-typedef SparseMatrix<float> SpMat;
-typedef SparseLU<SpMat, COLAMDOrdering<int>> SpSolver;
-typedef Triplet<float> T;
-
 
 #define MAX_TOUCHES 7
 // the numbers of horizontal and vertical grids
 #define HDIV 10
 #define VDIV 10
-#define NUMV 2*(HDIV+1)*(VDIV+1)
+// size of the linear system: two-times (x and y coordinates) the number of vertices
+#define N 2*(HDIV+1)*(VDIV+1)
 #define DEFAULTIMAGE @"Default.png"
 
 @interface ViewController ()
@@ -53,12 +51,19 @@ typedef Triplet<float> T;
 @implementation ViewController
 @synthesize effect;
 
+#if defined(_LAPACK_)
 // for LAPACK
-__CLPK_integer N=NUMV, NRHS=1, LDA=NUMV, IPIV[NUMV], LDB=NUMV, INFO;
-float A[NUMV*NUMV], mat[NUMV*NUMV];
-float vec[NUMV];
+__CLPK_integer IPIV[N];
+float A[N*N], mat[N*N];
+float vec[N];
+#endif
+
 // for Eigen
+typedef SparseMatrix<float> SpMat;
+typedef SparseLU<SpMat, COLAMDOrdering<int>> SpSolver;
+typedef Triplet<float> T;
 SpSolver solver;
+
 
 - (void)viewDidLoad
 {
@@ -210,14 +215,14 @@ SpSolver solver;
     if ([touches count] > 0){
         for (UITouch *touch in touches) {
             int *point = (int *)CFDictionaryGetValue(touchedPts, (__bridge void*)touch);
-            // touched location
+            // touched location in OpenGL coordinates
             CGPoint p = [touch locationInView:self.view];
             p.x = (p.x - screen.width/2.0)*ratio_width;
             p.y = (screen.height/2.0 - p.y)*ratio_height;
-            // nearest point will be considered to be touched ?
+            // nearest point will be selected
             int closest_vertex = 0;
             float min_dist = mainImage.radius;
-            // !! the lower left corner is kept unselectable due to a technical reason
+            // !! the lower left corner is kept unselectable; it is reserved for the case when there's not enough constraint.
             for(int i=1;i<mainImage.numVertices;i++){
                 float dist = (p.x-mainImage.x[i])*(p.x-mainImage.x[i])+(p.y-mainImage.y[i])*(p.y-mainImage.y[i]);
                 if(dist<min_dist){
@@ -225,6 +230,7 @@ SpSolver solver;
                     closest_vertex = i;
                 }
             }
+            // if the nearest vertex is not too far from the touched point
             if(min_dist<mainImage.radius){
                 if (point == NULL) {
                     point = (int *)malloc(sizeof(*point));
@@ -238,8 +244,10 @@ SpSolver solver;
         [self formEnergy];
     }
 }
+// drag
 - (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event {
     if(mainImage.numSelected==0) return;
+    // update the coordinates of the touched points
     for (UITouch *touch in touches) {
         CGPoint p = [touch locationInView:self.view];
         p.x = (p.x - screen.width/2.0)*ratio_width;
@@ -250,16 +258,22 @@ SpSolver solver;
             mainImage.y[*point] = p.y;
         }
     }
-//    [self solve_vertices_LAPACK];
+#if defined(_LAPACK_)
+    [self solve_vertices_LAPACK];
+#else
     [self solve_vertices_Eigen];
+#endif
     [mainImage deform];
 }
 
+#if defined(_LAPACK_)
+// determine the location of un-constraint vertices by solving a linear system using LAPACK
 - (void)solve_vertices_LAPACK{
     // clear constraint vector
     for(int i=0;i<N;i++){
         vec[i]=0;
     }
+    // when only a single vertex is constrained, add a constraint for the lower left vertex to kill the indeterminacy
     if(mainImage.numSelected==1){
         int index=mainImage.selected[mainImage.numSelected-1];
         mainImage.x[0] = mainImage.ix[0] + mainImage.x[index]-mainImage.ix[index];
@@ -267,15 +281,17 @@ SpSolver solver;
         vec[0] = mainImage.x[0];
         vec[mainImage.numVertices] = mainImage.y[0];
     }
+    // constrain touched vertices
     for(int k=0;k<mainImage.numSelected;k++){
         int i=mainImage.selected[k];
         int j=i+mainImage.numVertices;
         vec[i] = mainImage.x[i];
         vec[j] = mainImage.y[i];
     }
+    __CLPK_integer size=N, NRHS=1, LDA=N, LDB=N, INFO;
     // LAPACK destroys original matrix so mat should be duplicated
     memcpy(A, mat, sizeof(float) * N * N);
-    sgesv_(&N, &NRHS, A, &LDA, IPIV, vec, &LDB, &INFO);
+    sgesv_(&size, &NRHS, A, &LDA, IPIV, vec, &LDB, &INFO);
     // could be optimised by re-using the factrisation (the matrix is invariant during a drag)
     //    NSLog(@"LAPACK: %ld", INFO);
     for(int i=0;i<mainImage.numVertices;i++){
@@ -283,9 +299,11 @@ SpSolver solver;
         mainImage.y[i] = vec[i+mainImage.numVertices];
     }
 }
+#endif
 
+// determine the location of un-constraint vertices by solving a linear system using Eigen
 - (void)solve_vertices_Eigen{
-    VectorXf V = VectorXf::Zero(NUMV);
+    VectorXf V = VectorXf::Zero(N);
     if(mainImage.numSelected==1){
         int index=mainImage.selected[mainImage.numSelected-1];
         mainImage.x[0] = mainImage.ix[0] + mainImage.x[index]-mainImage.ix[index];
@@ -332,19 +350,22 @@ SpSolver solver;
     [self formEnergy];
 }
 
-// form energy matrix
+// prepare the energy matrix
 - (void)formEnergy{
     // all starting points are updated
     for(int j=0;j<mainImage.numVertices;j++){
         mainImage.ix[j] = mainImage.x[j];
         mainImage.iy[j] = mainImage.y[j];
     }
-//    [self formEnergy_LAPACK];
+#if defined(_LAPACK_)
+   [self formEnergy_LAPACK];
+#else
    [self formEnergy_Eigen];
+#endif
 }
 
 - (void)formEnergy_Eigen{
-    SpMat G(NUMV, NUMV);
+    SpMat G(N, N);
     std::vector<T> tripletListMat(0);
     tripletListMat.reserve(mainImage.numTriangles*30);
     // incorporate constraints
@@ -365,7 +386,7 @@ SpSolver solver;
         tripletListMat.push_back(T(j,j,1.0));
     }
     
-    // form the energy derivation matrix
+    // compute the energy derivation matrix
     for(int i=0;i<mainImage.numTriangles;i++){
         int posx=mainImage.triangles[3*i];
         int posy=posx+mainImage.numVertices;
@@ -426,6 +447,7 @@ SpSolver solver;
     return;
 }
 
+#if defined(_LAPACK_)
 - (void)formEnergy_LAPACK{
     // clear matrix
     for(int i=0;i<N*N;i++){
@@ -449,60 +471,62 @@ SpSolver solver;
         // CAREFUL: matrix indexing for LAPACK is in FORTRAN style
         // partial derivative of the energy |B|^2 - 2 det(B), where B=VP^{-1}
         // partial by x and y
-        mat[posx + posx*NUMV] += (c*c-2*c*e+d*d-2*d*f+e*e+f*f)/detA2;
-        mat[posx + posz*NUMV] += (-a*c+a*e-b*d+b*f+c*e+d*f-e*e-f*f)/detA2;
-        mat[posx + posw*NUMV] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
-        mat[posx + poss*NUMV] += (a*c-a*e+b*d-b*f-c*c+c*e-d*d+d*f)/detA2;
-        mat[posx + post*NUMV] += + (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
-        mat[posy + posy*NUMV] += (c*c-2*c*e+d*d-2*d*f+e*e+f*f)/detA2;
-        mat[posy + posz*NUMV] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
-        mat[posy + posw*NUMV] += (-a*c+a*e-b*d+b*f+c*e+d*f-e*e-f*f)/detA2;
-        mat[posy + poss*NUMV] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
-        mat[posy + post*NUMV] += (a*c-a*e+b*d-b*f-c*c+c*e-d*d+d*f)/detA2;
+        mat[posx + posx*N] += (c*c-2*c*e+d*d-2*d*f+e*e+f*f)/detA2;
+        mat[posx + posz*N] += (-a*c+a*e-b*d+b*f+c*e+d*f-e*e-f*f)/detA2;
+        mat[posx + posw*N] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
+        mat[posx + poss*N] += (a*c-a*e+b*d-b*f-c*c+c*e-d*d+d*f)/detA2;
+        mat[posx + post*N] += + (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
+        mat[posy + posy*N] += (c*c-2*c*e+d*d-2*d*f+e*e+f*f)/detA2;
+        mat[posy + posz*N] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
+        mat[posy + posw*N] += (-a*c+a*e-b*d+b*f+c*e+d*f-e*e-f*f)/detA2;
+        mat[posy + poss*N] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
+        mat[posy + post*N] += (a*c-a*e+b*d-b*f-c*c+c*e-d*d+d*f)/detA2;
         // partial by z and w
-        mat[posz + posx*NUMV] += (-a*c+a*e-b*d+b*f+c*e+d*f-e*e-f*f)/detA2;
-        mat[posz + posy*NUMV] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
-        mat[posz + posz*NUMV] += (a*a-2*a*e+b*b-2*b*f+e*e+f*f)/detA2;
-        mat[posz + poss*NUMV] += (-a*a+a*c+a*e-b*b+b*d+b*f-c*e-d*f)/detA2;
-        mat[posz + post*NUMV] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
-        mat[posw + posx*NUMV] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
-        mat[posw + posy*NUMV] += (-a*c+a*e-b*d+b*f+c*e+d*f-e*e-f*f)/detA2;
-        mat[posw + posw*NUMV] += (a*a-2*a*e+b*b-2*b*f+e*e+f*f)/detA2;
-        mat[posw + poss*NUMV] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
-        mat[posw + post*NUMV] += (-a*a+a*c+a*e-b*b+b*d+b*f-c*e-d*f)/detA2;
+        mat[posz + posx*N] += (-a*c+a*e-b*d+b*f+c*e+d*f-e*e-f*f)/detA2;
+        mat[posz + posy*N] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
+        mat[posz + posz*N] += (a*a-2*a*e+b*b-2*b*f+e*e+f*f)/detA2;
+        mat[posz + poss*N] += (-a*a+a*c+a*e-b*b+b*d+b*f-c*e-d*f)/detA2;
+        mat[posz + post*N] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
+        mat[posw + posx*N] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
+        mat[posw + posy*N] += (-a*c+a*e-b*d+b*f+c*e+d*f-e*e-f*f)/detA2;
+        mat[posw + posw*N] += (a*a-2*a*e+b*b-2*b*f+e*e+f*f)/detA2;
+        mat[posw + poss*N] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
+        mat[posw + post*N] += (-a*a+a*c+a*e-b*b+b*d+b*f-c*e-d*f)/detA2;
         // partial by s and t
-        mat[poss + posx*NUMV] += (a*c-a*e+b*d-b*f-c*c+c*e-d*d+d*f)/detA2;
-        mat[poss + posy*NUMV] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
-        mat[poss + posz*NUMV] += (-a*a+a*c+a*e-b*b+b*d+b*f-c*e-d*f)/detA2;
-        mat[poss + posw*NUMV] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
-        mat[poss + poss*NUMV] += (a*a-2*a*c+b*b-2*b*d+c*c+d*d)/detA2;
-        mat[post + posx*NUMV] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
-        mat[post + posy*NUMV] += (a*c-a*e+b*d-b*f-c*c+c*e-d*d+d*f)/detA2;
-        mat[post + posz*NUMV] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
-        mat[post + posw*NUMV] += (-a*a+a*c+a*e-b*b+b*d+b*f-c*e-d*f)/detA2;
-        mat[post + post*NUMV] += (a*a-2*a*c+b*b-2*b*d+c*c+d*d)/detA2;
+        mat[poss + posx*N] += (a*c-a*e+b*d-b*f-c*c+c*e-d*d+d*f)/detA2;
+        mat[poss + posy*N] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
+        mat[poss + posz*N] += (-a*a+a*c+a*e-b*b+b*d+b*f-c*e-d*f)/detA2;
+        mat[poss + posw*N] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
+        mat[poss + poss*N] += (a*a-2*a*c+b*b-2*b*d+c*c+d*d)/detA2;
+        mat[post + posx*N] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
+        mat[post + posy*N] += (a*c-a*e+b*d-b*f-c*c+c*e-d*d+d*f)/detA2;
+        mat[post + posz*N] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
+        mat[post + posw*N] += (-a*a+a*c+a*e-b*b+b*d+b*f-c*e-d*f)/detA2;
+        mat[post + post*N] += (a*a-2*a*c+b*b-2*b*d+c*c+d*d)/detA2;
     }
     // incorporate constraints
     if(mainImage.numSelected==1){
         for(int k=0;k<mainImage.numVertices;k++){
-            mat[0 + k*NUMV] = 0;
-            mat[mainImage.numVertices + k*NUMV] = 0;
+            mat[0 + k*N] = 0;
+            mat[mainImage.numVertices + k*N] = 0;
         }
-        mat[0 + 0*NUMV] = 1.0;
-        mat[mainImage.numVertices + mainImage.numVertices*NUMV] = 1.0;
+        mat[0 + 0*N] = 1.0;
+        mat[mainImage.numVertices + mainImage.numVertices*N] = 1.0;
     }
     for(int s=0;s<mainImage.numSelected;s++){
         int i=mainImage.selected[s];
         int j=i+mainImage.numVertices;
         for(int k=0;k<mainImage.numVertices;k++){
-            mat[i + k*NUMV] = 0;
-            mat[j + k*NUMV] = 0;
+            mat[i + k*N] = 0;
+            mat[j + k*N] = 0;
         }
-        mat[i + i*NUMV] = 1.0;
-        mat[j + j*NUMV] = 1.0;
+        mat[i + i*N] = 1.0;
+        mat[j + j*N] = 1.0;
     }
     return;
 }
+#endif
+
 
 /**
  *  Buttons
@@ -523,10 +547,10 @@ SpSolver solver;
         imagePicker.allowsEditing = YES;
         imagePicker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
         if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPhone){
-            //iPhone の場合
+            //for iPhone
             [self presentViewController:imagePicker animated:YES completion:nil];
         }else{
-            //iPadの場合
+            //for iPad
             if(imagePopController!=NULL){
                 [imagePopController dismissPopoverAnimated:YES];
             }

@@ -46,12 +46,13 @@
 // number of vertices
 @property int numVertices;
 
-// radius for a point ( for touch recognision )
+// radius for a point ( used for touch recognision )
 @property float radius;
 
-// vertex coordinates
+// current vertex coordinates
 @property GLfloat *x;
 @property GLfloat *y;
+// initial vertex coordinates
 @property GLfloat *ix;
 @property GLfloat *iy;
 // vertex index of triangles
@@ -59,7 +60,7 @@
 // number of triangles
 @property int numTriangles;
 
-// keep track of touches
+// to keep track of touches
 @property int *selected; // list of the indices of the selected vertices
 @property int numSelected;
 

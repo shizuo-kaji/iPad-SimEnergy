@@ -38,7 +38,6 @@
 @synthesize image_width;
 @synthesize image_height;
 
-
 @synthesize numVertices;
 @synthesize radius;
 @synthesize x;
@@ -52,8 +51,7 @@
 
 /** copyWithZone **/
 - (id)copyWithZone:(NSZone *)zone{
-    ImageMesh *clone =
-    [[[self class] allocWithZone:zone] init];
+    ImageMesh *clone =[[[self class] allocWithZone:zone] init];
     
     [clone setVerticalDivisions:self.verticalDivisions];
     [clone setHorizontalDivisions:self.horizontalDivisions];
