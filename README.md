@@ -1,4 +1,5 @@
 Similarity invariant energy minimising deformation for iOS
+by Shizuo Kaji
 =============
 Multi-touch on the image to deform.
 Look at the following paper for theoretical background.

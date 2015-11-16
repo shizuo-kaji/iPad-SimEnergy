@@ -29,6 +29,12 @@
 
 @interface ViewController : GLKViewController
 <UINavigationControllerDelegate, UIImagePickerControllerDelegate, UIGestureRecognizerDelegate>{
+    
+    // UI components
+    IBOutlet UISwitch *sw;
+    IBOutlet UISlider *iterationSlider;
+    IBOutlet UILabel *iterationLabel;
+
     // mesh data
     ImageMesh *mainImage;
     // hold touch information
@@ -41,11 +47,15 @@
     
     // image selector
     UIPopoverController *imagePopController;
+    
+    int mode, iteration;
 }
 
 - (IBAction)pushButton_ReadImage:(UIBarButtonItem *)sender;
 - (IBAction)pushButton_Initialize:(UIBarButtonItem *)sender;
 - (IBAction)pushButton_HowToUse:(UIBarButtonItem *)sender;
+- (IBAction)pushSeg:(UISegmentedControl *)sender;
+- (IBAction)iterationSliderChanged:(UISlider *)sender;
 
 @end
 

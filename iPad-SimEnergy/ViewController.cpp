@@ -23,20 +23,19 @@
 //
 
 
-// if you prefer LAPACK to Eigen, uncomment the next line; LAPACK is significantly slower
-//#define _LAPACK_
-
 #import "ViewController.h"
-#import <Accelerate/Accelerate.h>
 #include "Eigen/Sparse"
 #include "Eigen/Dense"
 #include <vector>
 using namespace Eigen;
 
-#define MAX_TOUCHES 7
+/// threshold for being zero
+#define EPSILON 10e-6
+//
+#define MAX_TOUCHES 5
 // the numbers of horizontal and vertical grids
-#define HDIV 10
-#define VDIV 10
+#define HDIV 15
+#define VDIV 15
 // size of the linear system: two-times (x and y coordinates) the number of vertices
 #define N 2*(HDIV+1)*(VDIV+1)
 #define DEFAULTIMAGE @"Default.png"
@@ -51,18 +50,15 @@ using namespace Eigen;
 @implementation ViewController
 @synthesize effect;
 
-#if defined(_LAPACK_)
-// for LAPACK
-__CLPK_integer IPIV[N];
-float A[N*N], mat[N*N];
-float vec[N];
-#endif
-
 // for Eigen
 typedef SparseMatrix<float> SpMat;
 typedef SparseLU<SpMat, COLAMDOrdering<int>> SpSolver;
 typedef Triplet<float> T;
 SpSolver solver;
+MatrixXf U;
+std::vector<MatrixXf> Pinv;
+// local transformations
+std::vector<Matrix2f> A;
 
 
 - (void)viewDidLoad
@@ -88,6 +84,16 @@ SpSolver solver;
     mainImage = [[ImageMesh alloc] initWithUIImage:pImage VerticalDivisions:VDIV HorizontalDivisions:HDIV];
     [self loadTexture:pImage];
     
+    Pinv.resize(mainImage.numTriangles);
+    for(int i=0;i<mainImage.numTriangles;i++){
+        Pinv[i] = MatrixXf::Zero(3, 2);
+    }
+    A.resize(mainImage.numTriangles);
+    
+    // UI Setup
+    mode = 0;
+    iteration = 1;
+        
     [self setupGL];
 }
 
@@ -258,54 +264,19 @@ SpSolver solver;
             mainImage.y[*point] = p.y;
         }
     }
-#if defined(_LAPACK_)
-    [self solve_vertices_LAPACK];
-#else
-    [self solve_vertices_Eigen];
-#endif
+    if(mode==1){
+        [self solve_vertices_ARAP];
+    }else if(mode==0){
+        [self solve_vertices_Sim];
+    }
     [mainImage deform];
 }
 
-#if defined(_LAPACK_)
-// determine the location of un-constraint vertices by solving a linear system using LAPACK
-- (void)solve_vertices_LAPACK{
-    // clear constraint vector
-    for(int i=0;i<N;i++){
-        vec[i]=0;
-    }
-    // when only a single vertex is constrained, add a constraint for the lower left vertex to kill the indeterminacy
-    if(mainImage.numSelected==1){
-        int index=mainImage.selected[mainImage.numSelected-1];
-        mainImage.x[0] = mainImage.ix[0] + mainImage.x[index]-mainImage.ix[index];
-        mainImage.y[0] = mainImage.iy[0] + mainImage.y[index]-mainImage.iy[index];
-        vec[0] = mainImage.x[0];
-        vec[mainImage.numVertices] = mainImage.y[0];
-    }
-    // constrain touched vertices
-    for(int k=0;k<mainImage.numSelected;k++){
-        int i=mainImage.selected[k];
-        int j=i+mainImage.numVertices;
-        vec[i] = mainImage.x[i];
-        vec[j] = mainImage.y[i];
-    }
-    __CLPK_integer size=N, NRHS=1, LDA=N, LDB=N, INFO;
-    // LAPACK destroys original matrix so mat should be duplicated
-    memcpy(A, mat, sizeof(float) * N * N);
-    sgesv_(&size, &NRHS, A, &LDA, IPIV, vec, &LDB, &INFO);
-    // could be optimised by re-using the factrisation (the matrix is invariant during a drag)
-    //    NSLog(@"LAPACK: %ld", INFO);
-    for(int i=0;i<mainImage.numVertices;i++){
-        mainImage.x[i] = vec[i];
-        mainImage.y[i] = vec[i+mainImage.numVertices];
-    }
-}
-#endif
-
 // determine the location of un-constraint vertices by solving a linear system using Eigen
-- (void)solve_vertices_Eigen{
+- (void)solve_vertices_Sim{
     VectorXf V = VectorXf::Zero(N);
     if(mainImage.numSelected==1){
-        int index=mainImage.selected[mainImage.numSelected-1];
+        int index=mainImage.selected[0];
         mainImage.x[0] = mainImage.ix[0] + mainImage.x[index]-mainImage.ix[index];
         mainImage.y[0] = mainImage.iy[0] + mainImage.y[index]-mainImage.iy[index];
         V(0) = mainImage.x[0];
@@ -324,6 +295,46 @@ SpSolver solver;
         mainImage.y[i] = Sol(i+mainImage.numVertices);
     }
 }
+
+- (void)solve_vertices_ARAP{
+    [self formArapRHS:A];
+    MatrixXf Sol = solver.solve(U);
+    // iterative refinement
+    for(int iter=1;iter<iteration;iter++){
+        std::vector<Matrix2f> A(mainImage.numTriangles);
+        for(int i=0;i<mainImage.numTriangles;i++){
+            int posx=mainImage.triangles[3*i];
+            int posz=mainImage.triangles[3*i+1];
+            int poss=mainImage.triangles[3*i+2];
+            MatrixXf B(2,3);
+            B << Sol(posx,0),Sol(posz,0),Sol(poss,0), Sol(posx,1),Sol(posz,1),Sol(poss,1);
+            A[i] = [self Rotation:B*Pinv[i]];
+        }
+        [self formArapRHS:A];
+        Sol = solver.solve(U);
+    }
+    // set coordinates
+    for(int i=0;i<mainImage.numVertices;i++){
+        mainImage.x[i] = Sol(i,0);
+        mainImage.y[i] = Sol(i,1);
+    }
+}
+
+// Rotation part of a matrix (Higham's algorithm)
+- (Matrix2f)Rotation:(Matrix2f) X{
+    Matrix2f Curr = X;
+    Matrix2f Prev;
+    do {
+        Matrix2f Ad = Curr.inverse().transpose();
+        double nad = Ad.array().abs().colwise().sum().maxCoeff() * Ad.array().abs().rowwise().sum().maxCoeff();
+        double na = Curr.array().abs().colwise().sum().maxCoeff() * Curr.array().abs().rowwise().sum().maxCoeff();
+        double gamma = sqrt(sqrt(nad / na));
+        Prev = Curr;
+        Curr = (0.5*gamma)*Curr + (0.5/gamma) *Ad;
+    } while ((Prev-Curr).lpNorm<1>() > EPSILON*Prev.lpNorm<1>());
+    return Curr;
+}
+
 
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event {
     for (UITouch *touch in touches) {
@@ -352,28 +363,34 @@ SpSolver solver;
 
 // prepare the energy matrix
 - (void)formEnergy{
+    if(mainImage.numSelected==0){
+        return;
+    }
     // all starting points are updated
     for(int j=0;j<mainImage.numVertices;j++){
         mainImage.ix[j] = mainImage.x[j];
         mainImage.iy[j] = mainImage.y[j];
     }
-#if defined(_LAPACK_)
-   [self formEnergy_LAPACK];
-#else
-   [self formEnergy_Eigen];
-#endif
+    if(mode==1){
+        [self formEnergy_ARAP];
+        // clear local transformation
+        for(int i=0;i<mainImage.numTriangles;i++){
+            A[i] = Matrix2f::Identity();
+        }
+    }else if(mode==0){
+        [self formEnergy_Sim];
+    }
 }
 
-- (void)formEnergy_Eigen{
+// Similarity invariant energy
+- (void)formEnergy_Sim{
     SpMat G(N, N);
     std::vector<T> tripletListMat(0);
     tripletListMat.reserve(mainImage.numTriangles*30);
     // incorporate constraints
     bool avoid[mainImage.numVertices];
     for(int i=0;i<mainImage.numVertices;i++) avoid[i]=false;
-    if(mainImage.numSelected==0){
-        return;
-    }else if(mainImage.numSelected==1){
+    if(mainImage.numSelected==1){
         avoid[0]=true;
         tripletListMat.push_back(T(0,0,1.0));
         tripletListMat.push_back(T(mainImage.numVertices,mainImage.numVertices,1.0));
@@ -447,86 +464,103 @@ SpSolver solver;
     return;
 }
 
-#if defined(_LAPACK_)
-- (void)formEnergy_LAPACK{
-    // clear matrix
-    for(int i=0;i<N*N;i++){
-        mat[i]=0;
-    }
-    // form the energy derivation matrix
+// inverted mesh matrix
+- (void)inverted_mesh_matrix{
     for(int i=0;i<mainImage.numTriangles;i++){
         int posx=mainImage.triangles[3*i];
-        int posy=posx+mainImage.numVertices;
         int posz=mainImage.triangles[3*i+1];
-        int posw=posz+mainImage.numVertices;
         int poss=mainImage.triangles[3*i+2];
-        int post=poss+mainImage.numVertices;
         float a = mainImage.ix[posx];
         float b = mainImage.iy[posx];
         float c = mainImage.ix[posz];
         float d = mainImage.iy[posz];
         float e = mainImage.ix[poss];
         float f = mainImage.iy[poss];
-        float detA2 = (a*d-a*f-b*c+b*e+c*f-d*e)*(a*d-a*f-b*c+b*e+c*f-d*e);
-        // CAREFUL: matrix indexing for LAPACK is in FORTRAN style
-        // partial derivative of the energy |B|^2 - 2 det(B), where B=VP^{-1}
-        // partial by x and y
-        mat[posx + posx*N] += (c*c-2*c*e+d*d-2*d*f+e*e+f*f)/detA2;
-        mat[posx + posz*N] += (-a*c+a*e-b*d+b*f+c*e+d*f-e*e-f*f)/detA2;
-        mat[posx + posw*N] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
-        mat[posx + poss*N] += (a*c-a*e+b*d-b*f-c*c+c*e-d*d+d*f)/detA2;
-        mat[posx + post*N] += + (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
-        mat[posy + posy*N] += (c*c-2*c*e+d*d-2*d*f+e*e+f*f)/detA2;
-        mat[posy + posz*N] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
-        mat[posy + posw*N] += (-a*c+a*e-b*d+b*f+c*e+d*f-e*e-f*f)/detA2;
-        mat[posy + poss*N] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
-        mat[posy + post*N] += (a*c-a*e+b*d-b*f-c*c+c*e-d*d+d*f)/detA2;
-        // partial by z and w
-        mat[posz + posx*N] += (-a*c+a*e-b*d+b*f+c*e+d*f-e*e-f*f)/detA2;
-        mat[posz + posy*N] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
-        mat[posz + posz*N] += (a*a-2*a*e+b*b-2*b*f+e*e+f*f)/detA2;
-        mat[posz + poss*N] += (-a*a+a*c+a*e-b*b+b*d+b*f-c*e-d*f)/detA2;
-        mat[posz + post*N] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
-        mat[posw + posx*N] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
-        mat[posw + posy*N] += (-a*c+a*e-b*d+b*f+c*e+d*f-e*e-f*f)/detA2;
-        mat[posw + posw*N] += (a*a-2*a*e+b*b-2*b*f+e*e+f*f)/detA2;
-        mat[posw + poss*N] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
-        mat[posw + post*N] += (-a*a+a*c+a*e-b*b+b*d+b*f-c*e-d*f)/detA2;
-        // partial by s and t
-        mat[poss + posx*N] += (a*c-a*e+b*d-b*f-c*c+c*e-d*d+d*f)/detA2;
-        mat[poss + posy*N] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
-        mat[poss + posz*N] += (-a*a+a*c+a*e-b*b+b*d+b*f-c*e-d*f)/detA2;
-        mat[poss + posw*N] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
-        mat[poss + poss*N] += (a*a-2*a*c+b*b-2*b*d+c*c+d*d)/detA2;
-        mat[post + posx*N] += (a*d-a*f-b*c+b*e+c*f-d*e)/detA2;
-        mat[post + posy*N] += (a*c-a*e+b*d-b*f-c*c+c*e-d*d+d*f)/detA2;
-        mat[post + posz*N] += (-a*d+a*f+b*c-b*e-c*f+d*e)/detA2;
-        mat[post + posw*N] += (-a*a+a*c+a*e-b*b+b*d+b*f-c*e-d*f)/detA2;
-        mat[post + post*N] += (a*a-2*a*c+b*b-2*b*d+c*c+d*d)/detA2;
+        float detA = (a*d-a*f-b*c+b*e+c*f-d*e);
+        Pinv[i] << d-f,-c+e, -b+f,a-e, b-d,-a+c;
+        Pinv[i] /= detA;
     }
+}
+
+// ARAP energy
+- (void)formEnergy_ARAP{
+    [self inverted_mesh_matrix];
+    int n=mainImage.numVertices;
+    SpMat G(n, n);
+    U = MatrixXf::Zero(n,2);
+    std::vector<T> tripletListMat(0);
+    tripletListMat.reserve(mainImage.numTriangles*9);
     // incorporate constraints
-    if(mainImage.numSelected==1){
-        for(int k=0;k<mainImage.numVertices;k++){
-            mat[0 + k*N] = 0;
-            mat[mainImage.numVertices + k*N] = 0;
-        }
-        mat[0 + 0*N] = 1.0;
-        mat[mainImage.numVertices + mainImage.numVertices*N] = 1.0;
-    }
+    bool avoid[mainImage.numVertices];
+    for(int i=0;i<mainImage.numVertices;i++) avoid[i]=false;
     for(int s=0;s<mainImage.numSelected;s++){
         int i=mainImage.selected[s];
-        int j=i+mainImage.numVertices;
-        for(int k=0;k<mainImage.numVertices;k++){
-            mat[i + k*N] = 0;
-            mat[j + k*N] = 0;
-        }
-        mat[i + i*N] = 1.0;
-        mat[j + j*N] = 1.0;
+        avoid[i]=true;
+        tripletListMat.push_back(T(i,i,1.0));
     }
+    Matrix3f LHS;
+    // compute the energy derivation matrix
+    for(int i=0;i<mainImage.numTriangles;i++){
+        int posx=mainImage.triangles[3*i];
+        int posz=mainImage.triangles[3*i+1];
+        int poss=mainImage.triangles[3*i+2];
+        LHS = Pinv[i] * Pinv[i].transpose();
+        // partial derivative of the energy |B-I|^2, where B=VP^{-1}
+        // partial by x
+        if(!avoid[posx]){
+            tripletListMat.push_back(T(posx,posx,LHS(0,0)));
+            tripletListMat.push_back(T(posx,posz,LHS(0,1)));
+            tripletListMat.push_back(T(posx,poss,LHS(0,2)));
+        }
+        // partial by z
+        if(!avoid[posz]){
+            tripletListMat.push_back(T(posz,posx,LHS(1,0)));
+            tripletListMat.push_back(T(posz,posz,LHS(1,1)));
+            tripletListMat.push_back(T(posz,poss,LHS(1,2)));
+        }
+        // partial by s
+        if(!avoid[poss]){
+            tripletListMat.push_back(T(poss,posx,LHS(2,0)));
+            tripletListMat.push_back(T(poss,posz,LHS(2,1)));
+            tripletListMat.push_back(T(poss,poss,LHS(2,2)));
+        }
+    }
+    G.setFromTriplets(tripletListMat.begin(), tripletListMat.end());
+    solver.compute(G);
     return;
 }
-#endif
 
+- (void)formArapRHS:(std::vector<Matrix2f>) A{
+    U.setZero();
+    for(int k=0;k<mainImage.numSelected;k++){
+        int i=mainImage.selected[k];
+        U.row(i) << mainImage.x[i], mainImage.y[i];
+    }
+    MatrixXf RHS(3,2);
+    bool avoid[mainImage.numVertices];
+    for(int i=0;i<mainImage.numVertices;i++) avoid[i]=false;
+    for(int s=0;s<mainImage.numSelected;s++){
+        avoid[mainImage.selected[s]]=true;
+    }
+    for(int i=0;i<mainImage.numTriangles;i++){
+        int posx=mainImage.triangles[3*i];
+        int posz=mainImage.triangles[3*i+1];
+        int poss=mainImage.triangles[3*i+2];
+        RHS = Pinv[i] * A[i].transpose();
+        if(!avoid[posx]){
+            U(posx,0) += RHS(0,0);
+            U(posx,1) += RHS(0,1);
+        }
+        if(!avoid[posz]){
+            U(posz,0) += RHS(1,0);
+            U(posz,1) += RHS(1,1);
+        }
+        if(!avoid[poss]){
+            U(poss,0) += RHS(2,0);
+            U(poss,1) += RHS(2,1);
+        }
+    }
+}
 
 /**
  *  Buttons
@@ -537,6 +571,19 @@ SpSolver solver;
     NSLog(@"Initialize");
     [mainImage initialize];
 }
+
+// Delta Slider
+- (IBAction)iterationSliderChanged:(UISlider *)sender{
+    iteration = (int)iterationSlider.value;
+    iterationLabel.text = [NSString stringWithFormat:@"#Iter = %d",iteration];
+}
+
+// mode change
+-(IBAction)pushSeg:(UISegmentedControl *)sender{
+    mode = (int)sender.selectedSegmentIndex;
+    [self formEnergy];
+}
+
 
 // Load new image
 - (IBAction)pushButton_ReadImage:(UIBarButtonItem *)sender {
