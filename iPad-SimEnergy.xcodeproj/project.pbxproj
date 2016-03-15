@@ -32,6 +32,7 @@
 		2A7E2C2D19198BD200BEBB5E /* Default.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Default.png; sourceTree = "<group>"; };
 		2AAD318019198B3C003C66EC /* LICENCE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENCE; sourceTree = SOURCE_ROOT; };
 		2AAD318119198B3C003C66EC /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = README.md; sourceTree = SOURCE_ROOT; };
+		2AB8310D1C97CFA8001BC626 /* solve_LAPACK.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = solve_LAPACK.h; sourceTree = "<group>"; };
 		2AED3BC61BB7811F00EF8D14 /* AppIcon58x58.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = AppIcon58x58.png; sourceTree = "<group>"; };
 		2AF136CA18CA26CB007E999A /* iPad-SimEnergy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "iPad-SimEnergy.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2AF136CD18CA26CB007E999A /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
@@ -120,6 +121,7 @@
 				2AF136EE18CA26CB007E999A /* ViewController.cpp */,
 				2AF136F018CA26CB007E999A /* Images.xcassets */,
 				2AF136D818CA26CB007E999A /* Supporting Files */,
+				2AB8310D1C97CFA8001BC626 /* solve_LAPACK.h */,
 			);
 			path = "iPad-SimEnergy";
 			sourceTree = "<group>";
