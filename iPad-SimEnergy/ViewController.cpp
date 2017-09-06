@@ -97,10 +97,8 @@ std::vector<Matrix2f> A;
     [self setupGL];
 }
 
-- (void)dealloc
-{    
+- (void)dealloc{    
     [self tearDownGL];
-    
     if ([EAGLContext currentContext] == self.context) {
         [EAGLContext setCurrentContext:nil];
     }
@@ -126,10 +124,7 @@ std::vector<Matrix2f> A;
 
 - (void)loadTexture:(UIImage *)pImage{
     NSError *error;
-    NSDictionary *options = [NSDictionary dictionaryWithObjectsAndKeys:
-                             [NSNumber numberWithBool:YES],
-                             GLKTextureLoaderOriginBottomLeft,
-                             nil];
+    NSDictionary* options = @{GLKTextureLoaderOriginBottomLeft: @YES};
     UIImage *image = [UIImage imageWithData:UIImagePNGRepresentation(pImage)];
     mainImage.texture = [GLKTextureLoader textureWithCGImage:image.CGImage options:options error:&error];
     if (error)
@@ -145,30 +140,21 @@ std::vector<Matrix2f> A;
 
 - (void)setupScreen{
     float gl_height, gl_width, ratio;
-    UIInterfaceOrientation orientation = [[UIApplication sharedApplication] statusBarOrientation];
-    if (UIInterfaceOrientationIsLandscape(orientation)) {
-        screen.height = [UIScreen mainScreen].bounds.size.width;
-        screen.width = [UIScreen mainScreen].bounds.size.height;
-    }else{
-        screen.height = [UIScreen mainScreen].bounds.size.height;
-        screen.width = [UIScreen mainScreen].bounds.size.width;
-    }
+//    UIInterfaceOrientation orientation = [[UIApplication sharedApplication] statusBarOrientation];
+    screen.height = [UIScreen mainScreen].bounds.size.height;
+    screen.width = [UIScreen mainScreen].bounds.size.width;
+    ratio = screen.height/screen.width;
     if (screen.width*mainImage.image_height<screen.height*mainImage.image_width) {
-        ratio = mainImage.image_width/screen.width;
         gl_width = mainImage.image_width;
-        gl_height = screen.height*ratio;
+        gl_height = gl_width*ratio;
     }else{
-        ratio = mainImage.image_height/screen.height;
         gl_height = mainImage.image_height;
-        gl_width = screen.width*ratio;
+        gl_width = gl_height/ratio;
     }
     ratio_height = gl_height / screen.height;
     ratio_width = gl_width / screen.width;
-    // compute touch radius for each vertex
-    float r = mainImage.image_width/(float)mainImage.horizontalDivisions;
-    mainImage.radius = r*r;
     
-    GLKMatrix4 projectionMatrix = GLKMatrix4MakeOrtho(-gl_width/2.0, gl_width/2.0, -gl_height/2.0, gl_height/2.0, -1024, 1024);
+    GLKMatrix4 projectionMatrix = GLKMatrix4MakeOrtho(-gl_width/2.0, gl_width/2.0, -gl_height/2.0, gl_height/2.0, -1, 1);
     self.effect.transform.projectionMatrix = projectionMatrix;
 }
 
@@ -177,7 +163,7 @@ std::vector<Matrix2f> A;
     GLuint name = mainImage.texture.name;
     glDeleteTextures(1, &name);
     [EAGLContext setCurrentContext:self.context];
-    self.effect = nil;    
+    self.effect = nil;
 }
 
 #pragma mark - GLKView and GLKViewController delegate methods
@@ -188,10 +174,6 @@ std::vector<Matrix2f> A;
 
 - (void)glkView:(GLKView *)view drawInRect:(CGRect)rect
 {
-    [self renderImage];
-}
-
-- (void)renderImage{
     self.effect.texture2d0.name = mainImage.texture.name;
     self.effect.texture2d0.enabled = YES;
     
@@ -572,6 +554,35 @@ std::vector<Matrix2f> A;
     [mainImage initialize];
 }
 
+// snapshot
+- (IBAction)pushSaveImg:(UIBarButtonItem *)sender{
+    NSLog(@"saving image");
+    UIImage* image = [(GLKView*)self.view snapshot];
+    UIImageWriteToSavedPhotosAlbum(image, self, @selector(savingImageIsFinished:didFinishSavingWithError:contextInfo:), nil);
+}
+- (void) savingImageIsFinished:(UIImage *)_image didFinishSavingWithError:(NSError *)_error contextInfo:(void *)_contextInfo{
+    NSMutableString *title = [NSMutableString string];
+    NSMutableString *msg = [NSMutableString string];
+    if(_error){
+        [title setString:@"error"];
+        [msg setString:@"Save failed."];
+    }else{
+        [title setString:@"Saved"];
+        [msg setString:@"Image saved in Camera Roll"];
+    }
+    UIAlertController * ac = [UIAlertController alertControllerWithTitle:title
+                                                                 message:msg
+                                                          preferredStyle:UIAlertControllerStyleAlert];
+    UIAlertAction * okAction =
+    [UIAlertAction actionWithTitle:@"OK"
+                             style:UIAlertActionStyleDefault
+                           handler:^(UIAlertAction * action) {
+                               NSLog(@"OK button tapped.");
+                           }];
+    [ac addAction:okAction];
+    [self presentViewController:ac animated:YES completion:nil];
+}
+
 // Delta Slider
 - (IBAction)iterationSliderChanged:(UISlider *)sender{
     iteration = (int)iterationSlider.value;
@@ -593,19 +604,7 @@ std::vector<Matrix2f> A;
         imagePicker.delegate = self;
         imagePicker.allowsEditing = YES;
         imagePicker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
-        if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPhone){
-            //for iPhone
-            [self presentViewController:imagePicker animated:YES completion:nil];
-        }else{
-            //for iPad
-            if(imagePopController!=NULL){
-                [imagePopController dismissPopoverAnimated:YES];
-            }
-            imagePopController = [[UIPopoverController alloc] initWithContentViewController:imagePicker];
-            [imagePopController presentPopoverFromBarButtonItem:sender
-                                       permittedArrowDirections:UIPopoverArrowDirectionAny
-                                                       animated:YES];
-        }
+        [self presentViewController:imagePicker animated:YES completion:nil];
     }else{
         NSLog(@"Photo library not available");
     }
@@ -617,23 +616,15 @@ std::vector<Matrix2f> A;
     GLuint name = mainImage.texture.name;
     glDeleteTextures(1, &name);
     UIImage *pImage = [info objectForKey: UIImagePickerControllerOriginalImage];
-    mainImage = [[ImageMesh alloc] initWithUIImage:pImage VerticalDivisions:VDIV HorizontalDivisions:HDIV];
+    mainImage.image_width = (float)pImage.size.width;
+    mainImage.image_height = (float)pImage.size.height;
     [self loadTexture:pImage];
     [self setupScreen];
-    
-    if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPhone){
-        [self dismissViewControllerAnimated:YES completion:nil];
-    }else{
-        [imagePopController dismissPopoverAnimated:YES];
-    }
+    [self dismissViewControllerAnimated:YES completion:nil];
 }
 //cancel
 - (void)imagePickerControllerDidCancel:(UIImagePickerController *)picker{
-    if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPhone){
-        [self dismissViewControllerAnimated:YES completion:nil];
-    }else{
-        [imagePopController dismissPopoverAnimated:YES];
-    }
+    [self dismissViewControllerAnimated:YES completion:nil];
 }
 
 // show help screen
@@ -648,8 +639,6 @@ std::vector<Matrix2f> A;
     NSLog(@"Orientation changed:%ld",(long)self.interfaceOrientation);
     [self setupScreen];
 }
-
-
 
 /**
  *  termination procedure

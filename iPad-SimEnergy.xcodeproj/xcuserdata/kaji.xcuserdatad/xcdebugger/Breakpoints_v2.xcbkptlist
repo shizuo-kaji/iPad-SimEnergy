@@ -16,7 +16,7 @@
             startingLineNumber = "411"
             endingLineNumber = "411"
             landmarkName = "-formEnergy_Sim"
-            landmarkType = "5">
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -32,7 +32,7 @@
             startingLineNumber = "410"
             endingLineNumber = "410"
             landmarkName = "-formEnergy_Sim"
-            landmarkType = "5">
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -47,8 +47,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "353"
             endingLineNumber = "353"
-            landmarkName = "-touchesCancelled:withEvent:"
-            landmarkType = "5">
+            landmarkName = "-formEnergy"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -64,7 +64,7 @@
             startingLineNumber = "544"
             endingLineNumber = "544"
             landmarkName = "-formArapRHS:"
-            landmarkType = "5">
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

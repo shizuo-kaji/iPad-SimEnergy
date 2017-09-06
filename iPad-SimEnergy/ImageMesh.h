@@ -28,20 +28,17 @@
 @interface ImageMesh : NSObject
 
 // mesh division
-@property int verticalDivisions;
-@property int horizontalDivisions;
-@property unsigned int indexArrsize;
+@property GLint verticalDivisions,horizontalDivisions;
+@property int indexArrsize;
 // vertex indices for triangle strip
 @property int *vertexIndices;
 
 // OpenGL
-@property GLfloat *verticesArr;
-@property GLfloat *textureCoordsArr;
+@property GLfloat *verticesArr, *textureCoordsArr;
 @property GLKTextureInfo *texture;
 
 // image size
-@property float image_width;
-@property float image_height;
+@property float image_width,image_height;
 
 // number of vertices
 @property int numVertices;
@@ -50,11 +47,9 @@
 @property float radius;
 
 // current vertex coordinates
-@property GLfloat *x;
-@property GLfloat *y;
+@property GLfloat *x, *y;
 // initial vertex coordinates
-@property GLfloat *ix;
-@property GLfloat *iy;
+@property GLfloat *ix, *iy;
 // vertex index of triangles
 @property int *triangles;
 // number of triangles

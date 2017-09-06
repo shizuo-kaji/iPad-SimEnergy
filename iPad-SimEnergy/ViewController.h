@@ -41,12 +41,8 @@
     CFMutableDictionaryRef touchedPts;
     
     // screen size
-    float ratio_height;
-    float ratio_width;
+    float ratio_height,ratio_width;
     CGSize screen;
-    
-    // image selector
-    UIPopoverController *imagePopController;
     
     int mode, iteration;
 }
@@ -56,9 +52,6 @@
 - (IBAction)pushButton_HowToUse:(UIBarButtonItem *)sender;
 - (IBAction)pushSeg:(UISegmentedControl *)sender;
 - (IBAction)iterationSliderChanged:(UISlider *)sender;
+- (IBAction)pushSaveImg:(UIBarButtonItem *)sender;
 
-@end
-
-@interface UIPopoverController (iPhone)
-+ (BOOL)_popoversDisabled;
 @end

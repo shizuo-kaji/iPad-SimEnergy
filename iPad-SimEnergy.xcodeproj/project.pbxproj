@@ -20,7 +20,6 @@
 		2AF136DC18CA26CB007E999A /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2AF136DA18CA26CB007E999A /* InfoPlist.strings */; };
 		2AF136DE18CA26CB007E999A /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 2AF136DD18CA26CB007E999A /* main.m */; };
 		2AF136E218CA26CB007E999A /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 2AF136E118CA26CB007E999A /* AppDelegate.m */; };
-		2AF136E518CA26CB007E999A /* Main_iPhone.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2AF136E318CA26CB007E999A /* Main_iPhone.storyboard */; };
 		2AF136E818CA26CB007E999A /* Main_iPad.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2AF136E618CA26CB007E999A /* Main_iPad.storyboard */; };
 		2AF136EF18CA26CB007E999A /* ViewController.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2AF136EE18CA26CB007E999A /* ViewController.cpp */; };
 		2AF136F118CA26CB007E999A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2AF136F018CA26CB007E999A /* Images.xcassets */; };
@@ -46,7 +45,6 @@
 		2AF136DF18CA26CB007E999A /* iPad-SimEnergy-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "iPad-SimEnergy-Prefix.pch"; sourceTree = "<group>"; };
 		2AF136E018CA26CB007E999A /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		2AF136E118CA26CB007E999A /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
-		2AF136E418CA26CB007E999A /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main_iPhone.storyboard; sourceTree = "<group>"; };
 		2AF136E718CA26CB007E999A /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main_iPad.storyboard; sourceTree = "<group>"; };
 		2AF136ED18CA26CB007E999A /* ViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViewController.h; sourceTree = "<group>"; };
 		2AF136EE18CA26CB007E999A /* ViewController.cpp */ = {isa = PBXFileReference; explicitFileType = sourcecode.cpp.objcpp; path = ViewController.cpp; sourceTree = "<group>"; };
@@ -115,7 +113,6 @@
 				2AF1370F18CA2765007E999A /* ImageMesh.m */,
 				2AF136E018CA26CB007E999A /* AppDelegate.h */,
 				2AF136E118CA26CB007E999A /* AppDelegate.m */,
-				2AF136E318CA26CB007E999A /* Main_iPhone.storyboard */,
 				2AF136E618CA26CB007E999A /* Main_iPad.storyboard */,
 				2AF136ED18CA26CB007E999A /* ViewController.h */,
 				2AF136EE18CA26CB007E999A /* ViewController.cpp */,
@@ -163,7 +160,7 @@
 		2AF136C218CA26CB007E999A /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0700;
+				LastUpgradeCheck = 0800;
 				ORGANIZATIONNAME = "mcg-q";
 				TargetAttributes = {
 					2AF136C918CA26CB007E999A = {
@@ -196,7 +193,6 @@
 			files = (
 				2AAD318219198B3C003C66EC /* LICENCE in Resources */,
 				2AF136E818CA26CB007E999A /* Main_iPad.storyboard in Resources */,
-				2AF136E518CA26CB007E999A /* Main_iPhone.storyboard in Resources */,
 				2AAD318319198B3C003C66EC /* README.md in Resources */,
 				2A7E2C2E19198BD200BEBB5E /* Default.png in Resources */,
 				2AF136F118CA26CB007E999A /* Images.xcassets in Resources */,
@@ -230,14 +226,6 @@
 			name = InfoPlist.strings;
 			sourceTree = "<group>";
 		};
-		2AF136E318CA26CB007E999A /* Main_iPhone.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				2AF136E418CA26CB007E999A /* Base */,
-			);
-			name = Main_iPhone.storyboard;
-			sourceTree = "<group>";
-		};
 		2AF136E618CA26CB007E999A /* Main_iPad.storyboard */ = {
 			isa = PBXVariantGroup;
 			children = (
@@ -262,14 +250,19 @@
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "iOS Developer";
 				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
@@ -304,13 +297,18 @@
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "iOS Developer";
 				COPY_PHASE_STRIP = YES;
 				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;

@@ -26,58 +26,18 @@
 
 @implementation ImageMesh
 
-@synthesize verticalDivisions;
-@synthesize horizontalDivisions;
+@synthesize verticalDivisions,horizontalDivisions;
 
-@synthesize verticesArr;
-@synthesize textureCoordsArr;
-@synthesize vertexIndices;
-@synthesize indexArrsize;
+@synthesize verticesArr,textureCoordsArr,vertexIndices,indexArrsize;
 @synthesize texture;
 
-@synthesize image_width;
-@synthesize image_height;
+@synthesize image_width,image_height;
 
 @synthesize numVertices;
-@synthesize radius;
-@synthesize x;
-@synthesize y;
-@synthesize ix;
-@synthesize iy;
-@synthesize selected;
-@synthesize numSelected;
-@synthesize triangles;
-@synthesize numTriangles;
+@synthesize radius,x,y,ix,iy;
+@synthesize selected,numSelected;
+@synthesize triangles,numTriangles;
 
-/** copyWithZone **/
-- (id)copyWithZone:(NSZone *)zone{
-    ImageMesh *clone =[[[self class] allocWithZone:zone] init];
-    
-    [clone setVerticalDivisions:self.verticalDivisions];
-    [clone setHorizontalDivisions:self.horizontalDivisions];
-    [clone setIndexArrsize:indexArrsize];
-    [clone setVertexIndices:vertexIndices];
-    
-    [clone setVerticesArr:self.verticesArr];
-    [clone setTextureCoordsArr:textureCoordsArr];
-    [clone setTexture:self.texture];
-    
-    [clone setImage_width:self.image_width];
-    [clone setImage_height:self.image_height];
-    
-    [clone setRadius:self.radius];
-    [clone setSelected:self.selected];
-    [clone setNumSelected:self.numSelected];
-    [clone setTriangles:self.triangles];
-    [clone setNumVertices:self.numVertices];
-    [clone setNumTriangles:self.numTriangles];
-    [clone setX:self.x];
-    [clone setY:self.y];
-    [clone setIx:self.ix];
-    [clone setIy:self.iy];
-    
-    return  clone;
-}
 
 // dealloc
 - (void)dealloc{
@@ -102,6 +62,9 @@
         numTriangles = 2 * verticalDivisions * horizontalDivisions;
         image_width = (float)uiImage.size.width;
         image_height = (float)uiImage.size.height;
+        float r = image_width/(float)horizontalDivisions;
+        radius = r*r;
+
         //malloc
         verticesArr = malloc(2 * indexArrsize * sizeof(*verticesArr));
         textureCoordsArr = malloc(2 * indexArrsize * sizeof(*textureCoordsArr));
