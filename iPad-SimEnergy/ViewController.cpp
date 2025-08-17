@@ -24,8 +24,8 @@
 
 
 #import "ViewController.h"
-#include "Eigen/Sparse"
-#include "Eigen/Dense"
+#include "../third-party/eigen/Eigen/Sparse"
+#include "../third-party/eigen/Eigen/Dense"
 #include <vector>
 using namespace Eigen;
 
