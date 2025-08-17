@@ -6,6 +6,10 @@
 
 iPad-SimEnergy is an interactive iPad application that allows users to deform images in real-time using multi-touch gestures. The app implements similarity invariant energy minimization algorithms, enabling natural and mathematically sound image deformation that preserves visual quality.
 
+## Demo
+
+![iPad-SimEnergy Demo](https://github.com/shizuo-kaji/iPad-SimEnergy/blob/master/iPad-SimEnergy.gif?raw=true)
+
 ### Key Features
 
 - **Multi-touch Interaction**: Intuitive gesture-based deformation using up to 5 simultaneous touch points
